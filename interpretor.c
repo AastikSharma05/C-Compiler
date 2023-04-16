@@ -11,54 +11,12 @@ char* old_source;
 int   pool_size;    // default size for text, data, stack
 int   line;         // line number
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
-
-// virtual machine memory
-/*
-    there suppose to be a bss segment, which stores unintialized data, but I ignored it to keep the code simple.
-    and a heap segment to dynamic allocate memory for the process, also ignored.
-
-    an graph grabbed from web:
-        +------------------+
-        |    stack   |     |      high address
-        |    ...     v     |
-        |                  |
-        |                  |
-        |                  |
-        |                  |
-        |    ...     ^     |
-        |    heap    |     |
-        +------------------+
-        | bss  segment     |
-        +------------------+
-        | data segment     |
-        +------------------+
-        | text segment     |      low address
-        +------------------+
-    (notice that the stack area starts from high address and extends to low address)
-*/
 int*  text;         // text      segment: store instructions.
 int*  old_text;     // dump text segment
 int*  stack;        // stack     segment: store function-related data.
 char* data;         // data      segment: store initialized data.
 
 
-// virtual machine registers
-/*
-    program counter         : store an address, which holds the next instruction.
-    pointer register        : store a pointer, which always points to the top of the stack. Pushing elem into the stack by *sp-- = elem, poping elem out by sp++.
-    base pointer            : point to somewhere in the stack, used when call a function.
-    general-purpose register: store instruction's result.
-
-    index_of_bp:
-        0: arg 1
-        1: arg 2
-        2: arg 3
-        3: return-address
-        4: old bp pointer
-        5: local var 1
-        6: local var 2
-*/
 int*  pc;           // program counter
 int*  sp;           // pointer register
 int*  bp;           // base pointer
@@ -73,8 +31,6 @@ enum {
     OR  , XOR , AND , EQ  , NE  , LT  , GT  , LE , GE , SHL, SHR, ADD, SUB, MUL , DIV, MOD,
     OPEN, READ, CLOS, PRTF, MALC, MSET, MCMP, EXIT
 };
-
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 // identifier
 int   token_val;
@@ -93,7 +49,6 @@ enum {
 // fields of identifier
 enum {Token, Hash, Name, Type, Class, Value, BType, BClass, BValue, IdSize};
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 // types of variable
 enum {CHAR, INT, PTR};
@@ -105,7 +60,6 @@ int expr_type;  // type of expression
 
 int* idmain;    // the main function
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 // used in lexical analysis, get next token
 void next()
@@ -288,7 +242,6 @@ void next()
     return;
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void match(int tk)
 {
@@ -299,22 +252,9 @@ void match(int tk)
     }
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void expression(int level)
 {
-    // expressions have various format.
-    // but majorly can be divided into two parts: unit and operator
-    // for example `(char) *a[10] = (int *) func(b > 0 ? 10 : 20);
-    // `a[10]` is an unit while `*` is an operator.
-    // `func(...)` in total is an unit.
-    // so we should first parse those unit and unary operators
-    // and then the binary ones
-    //
-    // also the expression can be in the following types:
-    //
-    // 1. unit_unary ::= unit | unit unary_op | unary_op unit
-    // 2. expr ::= unit_unary (bin_op unit_unary ...)
 
     // unit_unary()
     int *id;
@@ -342,15 +282,10 @@ void expression(int level)
             // store the rest strings
             while(token == '"'){ match('"'); }
 
-            // append the end of string character '\0', all the data are default
-            // to 0, so just move data one position forward.
             data = (char *)(((int)data + sizeof(int)) & (-sizeof(int)));
             expr_type = PTR;
         }
         else if(token == Sizeof){
-            // sizeof is actually an unary operator
-            // now only `sizeof(int)`, `sizeof(char)` and `sizeof(*...)` are
-            // supported.
             match(Sizeof);
             match('(');
             expr_type = INT;
@@ -375,11 +310,6 @@ void expression(int level)
             expr_type = INT;
         }
         else if(token == Id){
-            // there are several type when occurs to Id
-            // but this is unit, so it can only be
-            // 1. function call
-            // 2. Enum variable
-            // 3. global/local variable
             match(Id);
 
             id = current_id;
@@ -810,32 +740,14 @@ void expression(int level)
     }
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void statement()
 {
-    // there are 6 kinds of statements here:
-    // 1. if (...) <statement> [else <statement>]
-    // 2. while (...) <statement>
-    // 3. { <statement> }
-    // 4. return xxx;
-    // 5. <empty statement>;
-    // 6. expression; (expression end with semicolon)
 
     int *a, *b; // bess for branch control
 
     if(token == If){
-        // if (...) <statement> [else <statement>]
-        //
-        //   if (...)           <cond>
-        //                      JZ a
-        //     <statement>      <statement>
-        //   else:              JMP b
-        // a:                 a:
-        //     <statement>      <statement>
-        // b:                 b:
-        //
-        //
+        
         match(If);
         match('(');
         expression(Assign);  // parse condition
@@ -860,13 +772,7 @@ void statement()
         *b = (int)(text + 1);
     }
     else if(token == While){
-        //
-        // a:                     a:
-        //    while (<cond>)        <cond>
-        //                          JZ b
-        //     <statement>          <statement>
-        //                          JMP a
-        // b:                     b:
+        
         match(While);
 
         a = text + 1;
@@ -910,7 +816,6 @@ void statement()
     }
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void function_parameter()
 {
@@ -954,7 +859,6 @@ void function_parameter()
     index_of_bp = params+1;
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void function_body()
 {
@@ -1013,7 +917,6 @@ void function_body()
     *++text = LEV;                      // emit code for leaving the sub function
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void function_declaration()
 {
@@ -1039,7 +942,6 @@ void function_declaration()
     }
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void enum_declaration()
 {
@@ -1071,7 +973,6 @@ void enum_declaration()
     }
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 void global_declaration()
 {
@@ -1149,7 +1050,6 @@ void global_declaration()
     next();
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 // grammatical analysis, the entrance for analysing the whole C program file
 void program()
@@ -1161,7 +1061,6 @@ void program()
     }
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
 
 // the entrance for virtual machine
 int eval()
@@ -1229,8 +1128,6 @@ int eval()
     return 0;
 }
 
-/* +-------------------------------------------------------------------------------------------------------------------------------------------------------------+ */
-
 int main(int argc, char** argv)
 {
     int i, temp;        // for later use
@@ -1241,7 +1138,7 @@ int main(int argc, char** argv)
     pool_size = 256 * 1024;
     line      = 1;
 
-/* S -------------- read c file into source -------------- */
+    
     // open the file
     if( (file_describer = open(*argv, 0)) < 0 ){
         printf("could not open(%s)\n", *argv);
@@ -1263,9 +1160,7 @@ int main(int argc, char** argv)
     source[i] = 0; // add EOF to the stream
 
     close(file_describer);  // close the file
-/* E -------------- read c file into source -------------- */
-
-/* S -------------- virtual machine settings -------------- */
+    
     if( !(text = old_text = malloc(pool_size)) ){
         printf("could not malloc %d for text area\n", pool_size);
         return -1;
@@ -1287,9 +1182,7 @@ int main(int argc, char** argv)
 
     bp = sp = (int*)((int)stack + pool_size);
     ax = 0;
-/* E -------------- virtual machine settings -------------- */
-
-/* S -------------- preload keywords and functions -------------- */
+    
     source = "char else enum if int return sizeof while "
              "open read close printf malloc memset memcmp exit void main";
 
